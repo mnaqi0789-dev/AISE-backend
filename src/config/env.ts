@@ -10,7 +10,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
-  GOOGLE_REDIRECT_URI: z.string().min(1),
+  // GOOGLE_REDIRECT_URI: z.string().min(1),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional(),

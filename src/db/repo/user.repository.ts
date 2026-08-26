@@ -1,5 +1,5 @@
 import prisma from "../prisma";
-import { IUserRepository } from "../interfaces";
+import { IUserRepository } from "./interfaces";
 
 export const userRepository: IUserRepository = {
   findByEmail(email) {
