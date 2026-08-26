@@ -26,8 +26,8 @@
     "url": "https://github.com/mnaqi0789-dev/AISE-backend/issues"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.9.0",
-    "@prisma/client": "^7.9.0",
+    "@prisma/client": "^6.16.0",
+    "prisma": "^6.16.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
