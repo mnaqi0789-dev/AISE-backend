@@ -4,7 +4,7 @@ import env from "../../../config/env";
 const client = new OAuth2Client(
   env.GOOGLE_CLIENT_ID,
   env.GOOGLE_CLIENT_SECRET,
-  env.GOOGLE_REDIRECT_URI,
+  // env.GOOGLE_REDIRECT_URI,
 );
 
 export function buildAuthUrl(state: string): string {

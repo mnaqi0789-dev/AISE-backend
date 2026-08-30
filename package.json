@@ -26,17 +26,21 @@
     "url": "https://github.com/mnaqi0789-dev/AISE-backend/issues"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0",
     "@prisma/adapter-pg": "^6.19.0",
+    "@prisma/client": "^6.19.0",
     "bcrypt": "^6.0.0",
+    "bullmq": "^6.3.1",
+    "cheerio": "^1.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "google-auth-library": "^10.9.1",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^6.9.16",
     "pg": "^8.22.0",
+    "robots-parser": "^3.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
