@@ -1,4 +1,4 @@
-import { crawlQueue } from "../queue";
+import { crawlQueue } from "./queue";
 
 async function seedDummyJobs() {
   for (let i = 0; i < 5; i++) {
