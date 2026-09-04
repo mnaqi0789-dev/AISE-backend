@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Job, Queue } from "bullmq";
 import type Redis from "ioredis";
 
-vi.mock("./robot", () => ({ canCrawl: vi.fn() }));
-vi.mock("./fetcher", () => ({ fetchUrl: vi.fn() }));
-vi.mock("./links", () => ({ extractLinks: vi.fn() }));
-vi.mock("./dedup", () => ({ filterNewUrls: vi.fn() }));
-vi.mock("./seed", () => ({ isInScope: vi.fn() }));
-vi.mock("../../db/prisma", () => ({
+vi.mock("../robot", () => ({ canCrawl: vi.fn() }));
+vi.mock("../fetcher", () => ({ fetchUrl: vi.fn() }));
+vi.mock("../links", () => ({ extractLinks: vi.fn() }));
+vi.mock("../dedup", () => ({ filterNewUrls: vi.fn() }));
+vi.mock("../seed", () => ({ isInScope: vi.fn() }));
+vi.mock("../../../db/prisma", () => ({
   default: {
     rawFetch: { create: vi.fn() },
     lens: { findUnique: vi.fn() },

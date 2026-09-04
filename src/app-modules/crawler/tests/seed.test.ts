@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("./queue", () => ({ crawlQueue: { add: vi.fn() } }));
-vi.mock("../../db/prisma", () => ({
+vi.mock("../queue", () => ({ crawlQueue: { add: vi.fn() } }));
+vi.mock("../../../db/prisma", () => ({
   default: { lens: { findUnique: vi.fn() } },
 }));
 

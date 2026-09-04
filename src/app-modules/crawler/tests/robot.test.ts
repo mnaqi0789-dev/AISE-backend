@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("./fetcher", () => ({ fetchUrl: vi.fn() }));
+vi.mock("../fetcher", () => ({ fetchUrl: vi.fn() }));
 
 import { fetchUrl } from "../fetcher";
 import { canCrawl } from "../robot";
