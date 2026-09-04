@@ -14,13 +14,13 @@ vi.mock("../../db/prisma", () => ({
   },
 }));
 
-import { canCrawl } from "./robot";
-import { fetchUrl } from "./fetcher";
-import { extractLinks } from "./links";
-import { filterNewUrls } from "./dedup";
-import { isInScope } from "./seed";
-import prisma from "../../db/prisma";
-import { processCrawlJob, JOB_OPTS } from "./processor";
+import { canCrawl } from "../robot";
+import { fetchUrl } from "../fetcher";
+import { extractLinks } from "../links";
+import { filterNewUrls } from "../dedup";
+import { isInScope } from "../seed";
+import prisma from "../../../db/prisma";
+import { processCrawlJob, JOB_OPTS } from "../processor";
 
 function makeJob(data: any): Job<any> {
   return { data, name: "crawlJob" } as Job<any>;

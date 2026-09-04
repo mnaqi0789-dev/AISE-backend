@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractLinks } from "./links";
+import { extractLinks } from "../links";
 
 describe("extractLinks", () => {
   it("resolves relative links to absolute", () => {

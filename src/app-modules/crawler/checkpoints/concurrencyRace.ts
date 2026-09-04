@@ -40,8 +40,8 @@ async function runTest(label: string, acquireFn: () => Promise<boolean>) {
   console.log(`Actually accepted: ${acceptedCount}`);
   console.log(
     acceptedCount > MAX_ALLOWED
-      ? `❌ OVERSHOOT — race condition confirmed`
-      : `✅ Held the limit correctly`,
+      ? `OVERSHOOT — race condition confirmed`
+      : `Held the limit correctly`,
   );
 }
 

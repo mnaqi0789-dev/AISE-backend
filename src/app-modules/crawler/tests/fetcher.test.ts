@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchUrl } from "./fetcher";
+import { fetchUrl } from "../fetcher";
 
 describe("fetchUrl", () => {
   beforeEach(() => {

@@ -5,9 +5,9 @@ vi.mock("../../db/prisma", () => ({
   default: { lens: { findUnique: vi.fn() } },
 }));
 
-import { crawlQueue } from "./queue";
-import prisma from "../../db/prisma";
-import { isInScope, startCrawlForLens } from "./seed";
+import { crawlQueue } from "../queue";
+import prisma from "../../../db/prisma";
+import { isInScope, startCrawlForLens } from "../seed";
 
 describe("isInScope", () => {
   it("matches an exact domain", () => {

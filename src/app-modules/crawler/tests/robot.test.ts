@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("./fetcher", () => ({ fetchUrl: vi.fn() }));
 
-import { fetchUrl } from "./fetcher";
-import { canCrawl } from "./robot";
+import { fetchUrl } from "../fetcher";
+import { canCrawl } from "../robot";
 
 describe("canCrawl", () => {
   beforeEach(() => {

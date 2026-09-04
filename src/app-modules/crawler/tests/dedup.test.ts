@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import Redis from "ioredis";
-import { isNewUrl, filterNewUrls } from "./dedup";
+import { isNewUrl, filterNewUrls } from "../dedup";
 
 const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
 
