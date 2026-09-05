@@ -51,6 +51,14 @@ export async function processExtractionJob(
       },
     });
 
+    await prisma.$executeRaw`
+  UPDATE documents SET search_vector =
+    setweight(to_tsvector('english', coalesce(${metadata.title}, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(${metadata.description}, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(${content.cleanText}, '')), 'C')
+  WHERE id = ${document.id}
+`;
+
     await enqueueNearDupCheck(document.id, simhash);
   } catch (err: any) {
     if (err.code !== "P2002") {

@@ -96,6 +96,7 @@ model Document {
   duplicates        Document[] @relation("DocumentDuplicates")
   crawledAt         DateTime   @default(now())
   lensTags          String[]
+  searchVector Unsupported("tsvector")? @map("search_vector")
 
   @@map("documents")
   @@index([domain])

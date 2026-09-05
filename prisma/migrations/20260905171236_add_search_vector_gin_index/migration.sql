@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY documents_search_idx ON documents USING GIN (search_vector);
