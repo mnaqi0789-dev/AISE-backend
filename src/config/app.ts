@@ -5,6 +5,7 @@ import { errorHandler } from "../middleware/errorHandler";
 import authRoutes from "../routes/auth.routes";
 import adminRoutes from "../routes/admin.routes";
 import "../modules/email-verification/listener";
+import searchRoutes from "../routes/search.routes";
 
 const app: Application = express();
 
@@ -18,6 +19,7 @@ app.get("/health", (_req: Request, res: Response) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/search", searchRoutes);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ message: "Route not found" });

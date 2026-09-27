@@ -39,30 +39,31 @@ async function seedDocument(data: {
 }
 
 describe("searchDocuments (integration, requires real Neon connection)", () => {
-  let titleMatchId: string;
-  let bodyOnlyMatchId: string;
+  let titleMatchUrl: string;
+  let bodyOnlyMatchUrl: string;
 
   beforeAll(async () => {
-    const titleMatch = await seedDocument({
-      title: "Postgres Indexing Guide",
-      description: "A general overview of databases",
-      cleanText: "This article covers various database topics broadly.",
-    });
-    titleMatchId = titleMatch.id;
+    const [titleMatch, bodyOnlyMatch, nearDupOriginal] = await Promise.all([
+      seedDocument({
+        title: "Postgres Indexing Guide",
+        description: "A general overview of databases",
+        cleanText: "This article covers various database topics broadly.",
+      }),
+      seedDocument({
+        title: "General Database Concepts",
+        description: "An overview of storage systems",
+        cleanText:
+          "Somewhere deep in this article we briefly mention indexing as one of many topics.",
+      }),
+      seedDocument({
+        title: "Indexing Basics",
+        description: "Indexing overview",
+        cleanText: "Indexing content here.",
+      }),
+    ]);
 
-    const bodyOnlyMatch = await seedDocument({
-      title: "General Database Concepts",
-      description: "An overview of storage systems",
-      cleanText:
-        "Somewhere deep in this article we briefly mention indexing as one of many topics.",
-    });
-    bodyOnlyMatchId = bodyOnlyMatch.id;
-
-    const nearDupOriginal = await seedDocument({
-      title: "Indexing Basics",
-      description: "Indexing overview",
-      cleanText: "Indexing content here.",
-    });
+    titleMatchUrl = titleMatch.canonicalUrl;
+    bodyOnlyMatchUrl = bodyOnlyMatch.canonicalUrl;
 
     await seedDocument({
       title: "Indexing Basics Copy",
@@ -70,37 +71,62 @@ describe("searchDocuments (integration, requires real Neon connection)", () => {
       cleanText: "Indexing content here, duplicated.",
       nearDuplicateOfId: nearDupOriginal.id,
     });
-  });
+  }, 30000);
 
   afterAll(async () => {
     await prisma.document.deleteMany({ where: { id: { in: createdIds } } });
   });
 
   it("ranks a title match higher than a body-only match for the same term", async () => {
-    const results = await searchDocuments("indexing");
-    const titleMatchRank = results.find((r) => r.id === titleMatchId);
-    const bodyOnlyMatchRank = results.find((r) => r.id === bodyOnlyMatchId);
+    const results = await searchDocuments("indexing", {
+      domains: [TEST_DOMAIN],
+    });
+    const titleMatchRank = results.find((r) => r.url === titleMatchUrl);
+    const bodyOnlyMatchRank = results.find((r) => r.url === bodyOnlyMatchUrl);
 
     expect(titleMatchRank).toBeDefined();
     expect(bodyOnlyMatchRank).toBeDefined();
-    expect(titleMatchRank!.rank).toBeGreaterThan(bodyOnlyMatchRank!.rank);
+    expect(titleMatchRank!.rank_score).toBeGreaterThan(
+      bodyOnlyMatchRank!.rank_score,
+    );
   });
 
   it("returns results ordered by rank descending", async () => {
-    const results = await searchDocuments("indexing");
-    const ranks = results.map((r) => r.rank);
+    const results = await searchDocuments("indexing", {
+      domains: [TEST_DOMAIN],
+    });
+    const ranks = results.map((r) => r.rank_score);
     const sorted = [...ranks].sort((a, b) => b - a);
     expect(ranks).toEqual(sorted);
   });
 
   it("excludes documents marked as near-duplicates from results", async () => {
-    const results = await searchDocuments("indexing & basics & copy");
+    const results = await searchDocuments("indexing & basics & copy", {
+      domains: [TEST_DOMAIN],
+    });
     const found = results.some((r) => r.title === "Indexing Basics Copy");
     expect(found).toBe(false);
   });
 
   it("returns an empty array for a query matching nothing", async () => {
-    const results = await searchDocuments("zzznonexistentqueryterm");
+    const results = await searchDocuments("zzznonexistentqueryterm", {
+      domains: [TEST_DOMAIN],
+    });
     expect(results).toEqual([]);
+  });
+
+  it("filters results to only the given domains", async () => {
+    const results = await searchDocuments("indexing", {
+      domains: ["some-other-domain.example"],
+    });
+    expect(results).toEqual([]);
+  });
+
+  it("includes a non-empty snippet in each result", async () => {
+    const results = await searchDocuments("indexing", {
+      domains: [TEST_DOMAIN],
+    });
+    expect(results.length).toBeGreaterThan(0);
+    results.forEach((r) => expect(r.snippet.length).toBeGreaterThan(0));
   });
 });
