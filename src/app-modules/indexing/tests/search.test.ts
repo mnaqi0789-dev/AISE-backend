@@ -129,4 +129,42 @@ describe("searchDocuments (integration, requires real Neon connection)", () => {
     expect(results.length).toBeGreaterThan(0);
     results.forEach((r) => expect(r.snippet.length).toBeGreaterThan(0));
   });
+
+    it("filters results by publishedAt date range", async () => {
+      const inRange = await prisma.document.create({
+        data: {
+          canonicalUrl: `https://${TEST_DOMAIN}/${randomUUID()}`,
+          domain: TEST_DOMAIN,
+          title: "Dated Indexing Article",
+          cleanText: "Indexing content with a known date.",
+          contentHash: randomUUID(),
+          publishedAt: new Date("2025-06-15"),
+          lensTags: [],
+        },
+      });
+      await prisma.$executeRaw`
+      UPDATE documents SET search_vector = setweight(to_tsvector('english', ${inRange.title}), 'A')
+      WHERE id = ${inRange.id}
+    `;
+      createdIds.push(inRange.id);
+
+      const results = await searchDocuments("indexing", {
+        domains: [TEST_DOMAIN],
+        dateFrom: new Date("2025-01-01"),
+        dateTo: new Date("2025-12-31"),
+      });
+
+      expect(results.some((r) => r.title === "Dated Indexing Article")).toBe(
+        true,
+      );
+
+      const outOfRange = await searchDocuments("indexing", {
+        domains: [TEST_DOMAIN],
+        dateFrom: new Date("2026-01-01"),
+      });
+
+      expect(outOfRange.some((r) => r.title === "Dated Indexing Article")).toBe(
+        false,
+      );
+    });
 });

@@ -8,13 +8,25 @@ export interface SearchResult {
   rank_score: number;
 }
 
+export interface SearchOptions {
+  domains?: string[];
+  dateFrom?: Date;
+  dateTo?: Date;
+  limit?: number;
+  offset?: number;
+}
+
+const COUNT_CAP = 1000;
+
 export async function searchDocuments(
   query: string,
-  options: { domains?: string[]; limit?: number; offset?: number } = {},
+  options: SearchOptions = {},
 ): Promise<SearchResult[]> {
-  const { domains, limit = 20, offset = 0 } = options;
+  const { domains, dateFrom, dateTo, limit = 20, offset = 0 } = options;
 
   const domainFilter = domains && domains.length > 0 ? domains : null;
+  const fromFilter = dateFrom ?? null;
+  const toFilter = dateTo ?? null;
 
   const results = await prisma.$queryRaw<SearchResult[]>`
     SELECT
@@ -27,10 +39,38 @@ export async function searchDocuments(
     WHERE search_vector @@ to_tsquery('english', ${query})
       AND "nearDuplicateOfId" IS NULL
       AND (${domainFilter}::text[] IS NULL OR domain = ANY(${domainFilter}::text[]))
+      AND (${fromFilter}::timestamp IS NULL OR "publishedAt" >= ${fromFilter}::timestamp)
+      AND (${toFilter}::timestamp IS NULL OR "publishedAt" <= ${toFilter}::timestamp)
     ORDER BY rank_score DESC
     LIMIT ${limit}
     OFFSET ${offset}
   `;
 
   return results;
+}
+
+export async function countSearchResults(
+  query: string,
+  options: SearchOptions = {},
+): Promise<{ count: number; isApproximate: boolean }> {
+  const { domains, dateFrom, dateTo } = options;
+
+  const domainFilter = domains && domains.length > 0 ? domains : null;
+  const fromFilter = dateFrom ?? null;
+  const toFilter = dateTo ?? null;
+
+  const result = await prisma.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*) AS count FROM (
+      SELECT 1 FROM documents
+      WHERE search_vector @@ to_tsquery('english', ${query})
+        AND "nearDuplicateOfId" IS NULL
+        AND (${domainFilter}::text[] IS NULL OR domain = ANY(${domainFilter}::text[]))
+        AND (${fromFilter}::timestamp IS NULL OR "publishedAt" >= ${fromFilter}::timestamp)
+        AND (${toFilter}::timestamp IS NULL OR "publishedAt" <= ${toFilter}::timestamp)
+      LIMIT ${COUNT_CAP}
+    ) capped
+  `;
+
+  const count = Number(result[0].count);
+  return { count, isApproximate: count === COUNT_CAP };
 }
