@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { searchDocuments, countSearchResults } from "../indexing/search";
 import { resolveLens } from "./lensResolver";
+import { buildCacheKey, getWithStaleWhileRevalidate } from "./cache";
 
 function intersectDomains(
   lensDomains: string[] | null,
@@ -23,6 +24,16 @@ function parseDate(value: string | undefined): Date | undefined {
   return isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
+interface SearchResponseBody {
+  query: string;
+  lens: string;
+  lens_mode: string;
+  raw_results: unknown;
+  synthesized_answer: null;
+  pagination: { page: number; per_page: number; approx_total: string };
+  source: "index" | "cache";
+}
+
 export async function search(req: Request, res: Response) {
   const query = (req.query.q as string)?.trim();
   const lensParam = req.query.lens as string | undefined;
@@ -42,6 +53,15 @@ export async function search(req: Request, res: Response) {
   const resolvedLens = await resolveLens(lensParam);
   const domains = intersectDomains(resolvedLens.domains, domainParam);
 
+  const cacheKey = buildCacheKey({
+    query,
+    lensId: resolvedLens.lensId,
+    domains,
+    dateFrom,
+    dateTo,
+    page,
+    perPage,
+  });
   const searchOptions = {
     domains,
     dateFrom,
@@ -50,22 +70,32 @@ export async function search(req: Request, res: Response) {
     offset: (page - 1) * perPage,
   };
 
-  const [results, { count, isApproximate }] = await Promise.all([
-    searchDocuments(query, searchOptions),
-    countSearchResults(query, searchOptions),
-  ]);
+  const { value: responseBody, source } =
+    await getWithStaleWhileRevalidate<SearchResponseBody>(
+      cacheKey,
+      async () => {
+        const [results, { count, isApproximate }] = await Promise.all([
+          searchDocuments(query, searchOptions),
+          countSearchResults(query, searchOptions),
+        ]);
 
-  res.status(200).json({
-    query,
-    lens: resolvedLens.lensName,
-    lens_mode: resolvedLens.lensMode,
-    raw_results: results,
-    synthesized_answer: null,
-    pagination: {
-      page,
-      per_page: perPage,
-      approx_total: isApproximate ? `${count}+` : `${count}`,
-    },
-    source: "index",
-  });
+        return {
+          query,
+          lens: resolvedLens.lensName,
+          lens_mode: resolvedLens.lensMode,
+          raw_results: results,
+          synthesized_answer: null,
+          pagination: {
+            page,
+            per_page: perPage,
+            approx_total: isApproximate ? `${count}+` : `${count}`,
+          },
+          source: "index",
+        };
+      },
+    );
+
+  res
+    .status(200)
+    .json({ ...responseBody, source: source === "miss" ? "index" : "cache" });
 }
