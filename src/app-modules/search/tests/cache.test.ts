@@ -141,8 +141,16 @@ describe("getCached / setCached (integration, requires local Redis)", () => {
 describe("getWithStaleWhileRevalidate (integration, requires local Redis)", () => {
   const testKey = "search_cache:swr_test_key";
 
-  async function seedRawEntry(value: unknown, ageSeconds: number) {
-    const entry = { value, computedAt: Date.now() - ageSeconds * 1000 };
+  async function seedRawEntry(
+    value: unknown,
+    ageSeconds: number,
+    ttlSeconds = 360,
+  ) {
+    const entry = {
+      value,
+      computedAt: Date.now() - ageSeconds * 1000,
+      ttlSeconds,
+    };
     await redis.set(testKey, JSON.stringify(entry));
   }
 
@@ -152,7 +160,6 @@ describe("getWithStaleWhileRevalidate (integration, requires local Redis)", () =
 
   afterAll(async () => {
     await redis.del(testKey);
-    await redis.quit();
   });
 
   it("computes and caches on a genuine miss", async () => {
@@ -213,4 +220,98 @@ describe("getWithStaleWhileRevalidate (integration, requires local Redis)", () =
     expect(value).toEqual({ result: "fresh compute" });
     expect(compute).toHaveBeenCalledOnce();
   });
+});
+
+describe("stampede protection (integration, requires local Redis)", () => {
+  const testKey = "search_cache:stampede_test_key";
+
+  beforeEach(async () => {
+    await redis.del(testKey);
+    await redis.del(`search_lock:${testKey}`);
+  });
+
+  afterAll(async () => {
+    await redis.del(testKey);
+    await redis.del(`search_lock:${testKey}`);
+  });
+
+  it("only calls compute once for concurrent misses on the same key", async () => {
+    let callCount = 0;
+    const compute = vi.fn().mockImplementation(async () => {
+      callCount++;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return { result: `computed-${callCount}` };
+    });
+
+    const [first, second, third] = await Promise.all([
+      getWithStaleWhileRevalidate(testKey, compute),
+      getWithStaleWhileRevalidate(testKey, compute),
+      getWithStaleWhileRevalidate(testKey, compute),
+    ]);
+
+    expect(compute).toHaveBeenCalledOnce();
+    expect(first.value).toEqual(second.value);
+    expect(second.value).toEqual(third.value);
+  });
+
+  it("allows a fresh compute after the lock is released", async () => {
+    const compute = vi.fn().mockResolvedValue({ result: "first" });
+    await getWithStaleWhileRevalidate(testKey, compute);
+
+    await redis.del(testKey);
+
+    const compute2 = vi.fn().mockResolvedValue({ result: "second" });
+    const { value } = await getWithStaleWhileRevalidate(testKey, compute2);
+
+    expect(value).toEqual({ result: "second" });
+    expect(compute2).toHaveBeenCalledOnce();
+  });
+});
+
+describe("negative caching via TTL selector (integration, requires local Redis)", () => {
+  const testKey = "search_cache:negative_ttl_test_key";
+
+  beforeEach(async () => {
+    await redis.del(testKey);
+  });
+
+  afterAll(async () => {
+    await redis.del(testKey);
+  });
+
+  it("applies a short TTL when the selector marks the result as negative", async () => {
+    const compute = vi.fn().mockResolvedValue({ raw_results: [] });
+    const getTtl = (value: { raw_results: unknown[] }) =>
+      value.raw_results.length === 0 ? 15 : 360;
+
+    await getWithStaleWhileRevalidate(testKey, compute, getTtl);
+
+    const ttl = await redis.ttl(testKey);
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(15);
+  });
+
+  it("applies the longer TTL when the selector marks the result as normal", async () => {
+    const compute = vi.fn().mockResolvedValue({ raw_results: [{ id: 1 }] });
+    const getTtl = (value: { raw_results: unknown[] }) =>
+      value.raw_results.length === 0 ? 15 : 360;
+
+    await getWithStaleWhileRevalidate(testKey, compute, getTtl);
+
+    const ttl = await redis.ttl(testKey);
+    expect(ttl).toBeGreaterThan(15);
+  });
+
+  it("uses the default TTL when no selector is provided", async () => {
+    const compute = vi.fn().mockResolvedValue({ raw_results: [] });
+
+    await getWithStaleWhileRevalidate(testKey, compute);
+
+    const ttl = await redis.ttl(testKey);
+    expect(ttl).toBeGreaterThan(15);
+  });
+});
+
+afterAll(async () => {
+  await redis.quit();
 });

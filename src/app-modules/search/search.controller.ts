@@ -1,7 +1,12 @@
 import { Request, Response } from "express";
 import { searchDocuments, countSearchResults } from "../indexing/search";
 import { resolveLens } from "./lensResolver";
-import { buildCacheKey, getWithStaleWhileRevalidate } from "./cache";
+import {
+  buildCacheKey,
+  getWithStaleWhileRevalidate,
+  NEGATIVE_TTL_SECONDS,
+  FRESH_TTL_SECONDS,
+} from "./cache";
 
 function intersectDomains(
   lensDomains: string[] | null,
@@ -28,7 +33,7 @@ interface SearchResponseBody {
   query: string;
   lens: string;
   lens_mode: string;
-  raw_results: unknown;
+  raw_results: unknown[];
   synthesized_answer: null;
   pagination: { page: number; per_page: number; approx_total: string };
   source: "index" | "cache";
@@ -93,6 +98,10 @@ export async function search(req: Request, res: Response) {
           source: "index",
         };
       },
+      (value) =>
+        value.raw_results.length === 0
+          ? NEGATIVE_TTL_SECONDS
+          : FRESH_TTL_SECONDS + 300,
     );
 
   res
