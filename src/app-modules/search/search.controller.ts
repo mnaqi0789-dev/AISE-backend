@@ -1,12 +1,20 @@
 import { Request, Response } from "express";
 import { searchDocuments, countSearchResults } from "../indexing/search";
 import { resolveLens } from "./lensResolver";
+import { liveFetchUrl } from "./liveFetch";
 import {
   buildCacheKey,
   getWithStaleWhileRevalidate,
   NEGATIVE_TTL_SECONDS,
   FRESH_TTL_SECONDS,
 } from "./cache";
+
+const THIN_RESULTS_THRESHOLD = 3;
+const RETRIABLE_LIVE_FETCH_STATUSES = new Set([
+  "fetched",
+  "waited",
+  "already_indexed",
+]);
 
 function intersectDomains(
   lensDomains: string[] | null,
@@ -36,13 +44,14 @@ interface SearchResponseBody {
   raw_results: unknown[];
   synthesized_answer: null;
   pagination: { page: number; per_page: number; approx_total: string };
-  source: "index" | "cache";
+  source: "index" | "live_fetch" | "cache";
 }
 
 export async function search(req: Request, res: Response) {
   const query = (req.query.q as string)?.trim();
   const lensParam = req.query.lens as string | undefined;
   const domainParam = req.query.domain as string | undefined;
+  const liveUrlParam = (req.query.live_url as string | undefined)?.trim();
   const dateFrom = parseDate(req.query.date_from as string | undefined);
   const dateTo = parseDate(req.query.date_to as string | undefined);
   const page = Math.max(1, parseInt((req.query.page as string) || "1", 10));
@@ -75,27 +84,51 @@ export async function search(req: Request, res: Response) {
     offset: (page - 1) * perPage,
   };
 
+  async function runSearch(): Promise<{
+    results: unknown[];
+    approxTotal: string;
+  }> {
+    const [results, { count, isApproximate }] = await Promise.all([
+      searchDocuments(query, searchOptions),
+      countSearchResults(query, searchOptions),
+    ]);
+    return {
+      results,
+      approxTotal: isApproximate ? `${count}+` : `${count}`,
+    };
+  }
+
   const { value: responseBody, source } =
     await getWithStaleWhileRevalidate<SearchResponseBody>(
       cacheKey,
       async () => {
-        const [results, { count, isApproximate }] = await Promise.all([
-          searchDocuments(query, searchOptions),
-          countSearchResults(query, searchOptions),
-        ]);
+        const first = await runSearch();
+        let finalResults = first.results;
+        let finalApproxTotal = first.approxTotal;
+        let resultSource: "index" | "live_fetch" = "index";
+
+        if (first.results.length < THIN_RESULTS_THRESHOLD && liveUrlParam) {
+          const liveResult = await liveFetchUrl(liveUrlParam);
+          if (RETRIABLE_LIVE_FETCH_STATUSES.has(liveResult.status)) {
+            const retried = await runSearch();
+            finalResults = retried.results;
+            finalApproxTotal = retried.approxTotal;
+            resultSource = "live_fetch";
+          }
+        }
 
         return {
           query,
           lens: resolvedLens.lensName,
           lens_mode: resolvedLens.lensMode,
-          raw_results: results,
+          raw_results: finalResults,
           synthesized_answer: null,
           pagination: {
             page,
             per_page: perPage,
-            approx_total: isApproximate ? `${count}+` : `${count}`,
+            approx_total: finalApproxTotal,
           },
-          source: "index",
+          source: resultSource,
         };
       },
       (value) =>
@@ -104,7 +137,8 @@ export async function search(req: Request, res: Response) {
           : FRESH_TTL_SECONDS + 300,
     );
 
-  res
-    .status(200)
-    .json({ ...responseBody, source: source === "miss" ? "index" : "cache" });
+  res.status(200).json({
+    ...responseBody,
+    source: source === "miss" ? responseBody.source : "cache",
+  });
 }

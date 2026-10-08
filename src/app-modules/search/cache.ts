@@ -115,7 +115,6 @@ export async function getWithStaleWhileRevalidate<T>(
         return { value: entry.value, source: "stale" };
       }
     } catch {
-      // malformed entry, fall through to recompute
     }
   }
 
@@ -163,7 +162,6 @@ async function refreshInBackgroundIfUnlocked<T>(
     const value = await compute();
     await setCacheEntry(key, value, getTtlSeconds(value));
   } catch {
-    // background refresh failing silently is acceptable; the next request will just retry
   } finally {
     await releaseLock(lockKey);
   }
