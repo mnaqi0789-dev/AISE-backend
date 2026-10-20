@@ -7,19 +7,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum LensMode {
+  predefined
+  custom
+}
+
+enum IndexState {
+  PENDING
+  INDEXING
+  READY
+  FAILED
+}
+
 model User {
-  id                  String         @id @default(cuid())
-  email               String         @unique
+  id                  String          @id @default(cuid())
+  email               String          @unique
   passwordHash        String?
-  emailVerified       Boolean        @default(false)
-  role                String         @default("user")
-  failedLoginAttempts Int            @default(0)
+  emailVerified       Boolean         @default(false)
+  role                String          @default("user")
+  failedLoginAttempts Int             @default(0)
   lockedUntil         DateTime?
-  createdAt           DateTime       @default(now())
+  createdAt           DateTime        @default(now())
   sessions            Session[]
   oauthAccounts       OAuthAccount[]
   mfaSecret           String?
-  mfaEnabled          Boolean        @default(false)
+  mfaEnabled          Boolean         @default(false)
   tokens              Token[]
   searchHistory       SearchHistory[]
   lenses              Lens[]
@@ -96,7 +108,7 @@ model Document {
   duplicates        Document[] @relation("DocumentDuplicates")
   crawledAt         DateTime   @default(now())
   lensTags          String[]
-  searchVector Unsupported("tsvector")? @map("search_vector")
+  searchVector      Unsupported("tsvector")? @map("search_vector")
 
   @@map("documents")
   @@index([domain])
@@ -117,23 +129,43 @@ model RawFetch {
 }
 
 model Lens {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  domains     String[]
-  mode        String
-  owner       String?
-  user        User?    @relation(fields: [owner], references: [id])
+  id            String          @id @default(cuid())
+  slug          String?         @unique
+  name          String
+  description   String?
+  mode          LensMode
+  owner         String?
+  user          User?           @relation(fields: [owner], references: [id], onDelete: Cascade)
+  domains       String[]
+  tags          String[]
+  seeds         LensSeed[]
+  indexState    IndexState      @default(PENDING)
+  lastIndexedAt DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
   searchHistory SearchHistory[]
 
+  @@index([owner])
   @@map("lenses")
+}
+
+model LensSeed {
+  id       String @id @default(cuid())
+  lensId   String
+  lens     Lens   @relation(fields: [lensId], references: [id], onDelete: Cascade)
+  url      String
+  maxDepth Int    @default(2)
+  maxPages Int    @default(200)
+
+  @@unique([lensId, url])
+  @@map("lens_seeds")
 }
 
 model SearchHistory {
   id          String   @id @default(cuid())
   query       String
   lensId      String?
-  lens        Lens?    @relation(fields: [lensId], references: [id])
+  lens        Lens?    @relation(fields: [lensId], references: [id], onDelete: SetNull)
   filters     Json?
   resultCount Int?
   createdAt   DateTime @default(now())
